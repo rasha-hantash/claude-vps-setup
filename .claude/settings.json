@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(hcloud:*)",
+      "Bash(tailscale:*)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(curl:*)",
+      "Bash(autossh:*)",
+      "Bash(./scripts/*)",
+      "Bash(bash ./scripts/*)",
+      "Bash(chmod:*)",
+      "Bash(mkdir:*)",
+      "Read(./**)",
+      "Write(./.setup-state.json)",
+      "Edit(./.setup-state.json)"
+    ]
+  }
+}

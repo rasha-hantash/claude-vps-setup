@@ -54,7 +54,7 @@ echo "==> Installing Tailscale..."
 if ! command -v tailscale >/dev/null 2>&1; then
   curl -fsSL https://tailscale.com/install.sh | sh
 fi
-tailscale up --ssh --authkey="$TS_AUTH_KEY" --accept-routes
+tailscale up --ssh --auth-key="$TS_AUTH_KEY" --accept-routes
 
 echo "==> Configuring UFW (allow Tailscale; deny everything else by default)..."
 ufw --force reset >/dev/null

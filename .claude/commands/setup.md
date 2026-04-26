@@ -22,7 +22,7 @@ Ask each of these as a separate `AskUserQuestion` call:
 1. **Hetzner API token.** Freeform. Before asking, paste this in chat so the user can see what to do:
    > Go to https://console.hetzner.cloud/ → your project → Security → API tokens → Generate API token. Give it **Read & Write** scope. Copy the token and paste it below. The token is only shown once.
 2. **Region.** Multiple choice: `nbg1` (Nuremberg 🇩🇪), `fsn1` (Falkenstein 🇩🇪), `hel1` (Helsinki 🇫🇮), `ash` (Ashburn 🇺🇸), `hil` (Hillsboro 🇺🇸), `sin` (Singapore 🇸🇬). Default: whichever is geographically closest — you can guess from the user's timezone if you have it, otherwise ask.
-3. **VM type.** Multiple choice: `cx22` (2 vCPU / 4 GB, ~€4.51/mo — recommended), `cx32` (4 vCPU / 8 GB, ~€7.50/mo — if repos are big), `cpx21` (3 vCPU AMD / 4 GB, ~€5.50/mo). Default `cx22`.
+3. **VM type.** Multiple choice: `cx22` (2 vCPU / 4 GB — recommended), `cx32` (4 vCPU / 8 GB — if repos are big), `cpx22` (AMD shared vCPU alternative). Default `cx22`. (Pricing changes — check `hcloud server-type describe <type>` or hetzner.com/cloud for current monthly cost before confirming.)
 4. **VM name.** Freeform. Default `claude-box`.
 5. **SSH public key path.** Freeform. Default `~/.ssh/id_ed25519.pub`. Verify the file exists before proceeding.
 6. **Tailscale auth key.** Freeform. Before asking, paste:

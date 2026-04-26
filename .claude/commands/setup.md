@@ -21,8 +21,26 @@ Ask each of these as a separate `AskUserQuestion` call:
 
 1. **Hetzner API token.** Freeform. Before asking, paste this in chat so the user can see what to do:
    > Go to https://console.hetzner.cloud/ → your project → Security → API tokens → Generate API token. Give it **Read & Write** scope. Copy the token and paste it below. The token is only shown once.
-2. **Region.** Multiple choice: `nbg1` (Nuremberg 🇩🇪), `fsn1` (Falkenstein 🇩🇪), `hel1` (Helsinki 🇫🇮), `ash` (Ashburn 🇺🇸), `hil` (Hillsboro 🇺🇸), `sin` (Singapore 🇸🇬). Default: whichever is geographically closest — you can guess from the user's timezone if you have it, otherwise ask.
-3. **VM type.** Multiple choice: `cx23` (2 vCPU / 4 GB — recommended), `cx33` (4 vCPU / 8 GB — if repos are big), `cpx22` (AMD shared vCPU alternative). Default `cx23`. (Pricing changes — check `hcloud server-type describe <type>` or hetzner.com/cloud for current monthly cost before confirming.)
+2. **Region.** Multiple choice. Pull the live list from Hetzner so we don't hand-maintain it:
+   ```
+   HCLOUD_TOKEN=<token> hcloud location list -o json | jq -r '.[] | "\(.name)|\(.city)|\(.country)"'
+   ```
+   Present each as `<name> — <city>, <country>` (e.g., `nbg1 — Nuremberg, DE`). Default to whichever location is geographically closest to the user's timezone if known; otherwise prompt without a default.
+
+3. **VM type.** Multiple choice — but only show types that are actually available in the chosen region. Pull the live list from Hetzner and filter:
+   ```
+   HCLOUD_TOKEN=<token> hcloud server-type list -o json | \
+     jq -r --arg loc "<chosen-region>" '
+       .[]
+       | select(.deprecated == null)
+       | select(.prices[]? | .location == $loc)
+       | "\(.name)|\(.cores) vCPU|\(.memory) GB|\(.description)|" +
+         (.prices[] | select(.location == $loc) | .price_monthly.gross)
+     '
+   ```
+   This excludes deprecated types and types not yet rolled out to the selected region (e.g., `cx23` is currently EU-only as of 2026-04, so a user who picks `ash` will see `cx22`/`cpx22` instead). Show name, vCPU, RAM, and live monthly price (€). Default to the cheapest non-deprecated `cx*` (Intel/AMD shared, cost-optimized) type with ≥4 GB RAM. If none match, fall back to the cheapest available type.
+
+   If the region/type filter ever returns zero results, that's a bug — surface the raw API response and stop, don't try to recover.
 4. **VM name.** Freeform. Default `claude-box`.
 5. **SSH public key path.** Freeform. Default `~/.ssh/id_ed25519.pub`. Verify the file exists before proceeding.
 6. **Tailscale auth key.** Freeform. Before asking, paste:
@@ -34,7 +52,9 @@ Ask each of these as a separate `AskUserQuestion` call:
 
 Before spending money, summarize the plan back to the user:
 
-> I'm about to create a `cx23` VM named `claude-box` in `nbg1`, register your SSH key, and run the bootstrap script to install Tailscale and Claude Code. This will cost ~€4.49/mo starting now (Hetzner bills hourly, so a few hours of testing is well under €0.05). Continue?
+> I'm about to create a `<chosen-type>` VM named `<chosen-name>` in `<chosen-region>`, register your SSH key, and run the bootstrap script to install Tailscale and Claude Code. This will cost ~€<live-monthly-price>/mo starting now (Hetzner bills hourly, so a few hours of testing is well under €0.05). Continue?
+
+Use the live monthly price from the server-type query in step 3 — don't hardcode a number.
 
 Wait for explicit confirmation.
 

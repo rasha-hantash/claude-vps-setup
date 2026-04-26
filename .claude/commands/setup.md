@@ -21,26 +21,42 @@ Ask each of these as a separate `AskUserQuestion` call:
 
 1. **Hetzner API token.** Freeform. Before asking, paste this in chat so the user can see what to do:
    > Go to https://console.hetzner.cloud/ → your project → Security → API tokens → Generate API token. Give it **Read & Write** scope. Copy the token and paste it below. The token is only shown once.
-2. **Region.** Multiple choice. Pull the live list from Hetzner so we don't hand-maintain it:
-   ```
-   HCLOUD_TOKEN=<token> hcloud location list -o json | jq -r '.[] | "\(.name)|\(.city)|\(.country)"'
-   ```
-   Present each as `<name> — <city>, <country>` (e.g., `nbg1 — Nuremberg, DE`). Default to whichever location is geographically closest to the user's timezone if known; otherwise prompt without a default.
+2. **VM type.** Multiple choice — pulled live from Hetzner. Pick the spec first; the location prompt that follows will only show regions where the chosen type can actually be provisioned. (Hetzner rolls out new types EU-first, so `cx23` is currently NBG-1 / HEL-1 only, while `cpx22` and `cx22` are available across all regions. Asking spec first avoids dead-end paths.)
 
-3. **VM type.** Multiple choice — but only show types that are actually available in the chosen region. Pull the live list from Hetzner and filter:
+   Pull the list:
    ```
    HCLOUD_TOKEN=<token> hcloud server-type list -o json | \
-     jq -r --arg loc "<chosen-region>" '
+     jq -r '
        .[]
        | select(.deprecated == null)
-       | select(.prices[]? | .location == $loc)
-       | "\(.name)|\(.cores) vCPU|\(.memory) GB|\(.description)|" +
-         (.prices[] | select(.location == $loc) | .price_monthly.gross)
+       | {
+           name,
+           cores,
+           memory,
+           description,
+           locations: [.prices[].location] | sort,
+           price_eu_monthly: ([.prices[] | select(.location == "nbg1") | .price_monthly.gross] | first // "n/a")
+         }
      '
    ```
-   This excludes deprecated types and types not yet rolled out to the selected region (e.g., `cx23` is currently EU-only as of 2026-04, so a user who picks `ash` will see `cx22`/`cpx22` instead). Show name, vCPU, RAM, and live monthly price (€). Default to the cheapest non-deprecated `cx*` (Intel/AMD shared, cost-optimized) type with ≥4 GB RAM. If none match, fall back to the cheapest available type.
+   Present each type as: `<name> — <cores> vCPU / <memory> GB — <description> — available in <locations> — from €<price>/mo`. Default to the cheapest non-deprecated `cx*` (Intel/AMD shared, cost-optimized) type with ≥4 GB RAM. If none match, fall back to the cheapest available type.
 
-   If the region/type filter ever returns zero results, that's a bug — surface the raw API response and stop, don't try to recover.
+3. **Region.** Multiple choice — only locations where the chosen type is available. Filter the same JSON:
+   ```
+   <previous output> | jq -r --arg type "<chosen-type>" '
+     map(select(.name == $type))
+     | first
+     | .locations[]
+   '
+   ```
+   Then enrich each code with city / country via:
+   ```
+   HCLOUD_TOKEN=<token> hcloud location list -o json | \
+     jq -r '.[] | "\(.name)|\(.city)|\(.country)"'
+   ```
+   Present each as `<name> — <city>, <country>` (e.g., `nbg1 — Nuremberg, DE`). Default to whichever available location is geographically closest to the user's timezone if known; otherwise prompt without a default.
+
+   If either query returns zero results, that's a bug — surface the raw API response and stop.
 4. **VM name.** Freeform. Default `claude-box`.
 5. **SSH public key path.** Freeform. Default `~/.ssh/id_ed25519.pub`. Verify the file exists before proceeding.
 6. **Tailscale auth key.** Freeform. Before asking, paste:

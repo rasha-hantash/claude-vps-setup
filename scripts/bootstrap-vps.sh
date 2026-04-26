@@ -2,15 +2,23 @@
 # Runs ON the VPS as root. Creates the agent user, hardens SSH, installs Tailscale and Claude Code.
 #
 # Required env:
-#   TS_AUTH_KEY    Tailscale auth key (tskey-auth-...)
+#   TS_AUTH_KEY        Tailscale auth key (tskey-auth-...)
+#
+# Optional env:
+#   LAPTOP_HOSTNAME    Tailscale hostname of the laptop (e.g., my-mbp.tail-abc.ts.net).
+#                      If set, written into the agent's shell profile so `vps-sync-repo`
+#                      finds the laptop without manual configuration.
 #
 # Expects (uploaded to /root/ before running):
 #   /root/tmux.conf
 #   /root/global-claude-md.md
+#   /root/vps-clone           (helper script — installed to ~agent/.local/bin)
+#   /root/vps-sync-repo       (helper script — installed to ~agent/.local/bin)
 
 set -euo pipefail
 
 : "${TS_AUTH_KEY:?TS_AUTH_KEY is required}"
+LAPTOP_HOSTNAME="${LAPTOP_HOSTNAME:-}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Must run as root." >&2
@@ -87,6 +95,37 @@ fi
 if [[ -f /root/global-claude-md.md ]]; then
   sudo -u "$AGENT_USER" mkdir -p "/home/$AGENT_USER/.claude"
   install -o "$AGENT_USER" -g "$AGENT_USER" -m 0644 /root/global-claude-md.md "/home/$AGENT_USER/.claude/CLAUDE.md"
+fi
+
+echo "==> Installing helper scripts to ~$AGENT_USER/.local/bin..."
+sudo -u "$AGENT_USER" mkdir -p "/home/$AGENT_USER/.local/bin"
+for helper in vps-clone vps-sync-repo; do
+  if [[ -f "/root/$helper" ]]; then
+    install -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 "/root/$helper" "/home/$AGENT_USER/.local/bin/$helper"
+  fi
+done
+
+echo "==> Configuring agent's shell profile..."
+BASHRC="/home/$AGENT_USER/.bashrc"
+# Append once (idempotent) — skip if our marker is already present.
+if ! grep -q "claude-vps-setup" "$BASHRC" 2>/dev/null; then
+  {
+    echo ''
+    echo '# --- claude-vps-setup ---'
+    echo '# Default Claude Code to maximum reasoning effort on the VPS.'
+    echo "alias claude='claude --effort max'"
+    echo '# Ensure ~/.local/bin is on PATH.'
+    echo 'if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then export PATH="$HOME/.local/bin:$PATH"; fi'
+  } >> "$BASHRC"
+  chown "$AGENT_USER:$AGENT_USER" "$BASHRC"
+fi
+
+# If LAPTOP_HOSTNAME was provided, persist it for vps-sync-repo to use.
+if [[ -n "$LAPTOP_HOSTNAME" ]]; then
+  if ! grep -q "^export LAPTOP_HOST=" "$BASHRC" 2>/dev/null; then
+    echo "export LAPTOP_HOST=\"$LAPTOP_HOSTNAME\"" >> "$BASHRC"
+    chown "$AGENT_USER:$AGENT_USER" "$BASHRC"
+  fi
 fi
 
 echo "==> Bootstrap complete."

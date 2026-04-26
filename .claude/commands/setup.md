@@ -47,25 +47,33 @@ Wait for explicit confirmation.
 
 2. Wait for SSH to come up. Poll `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new root@<ip> true` every 10 seconds for up to 3 minutes.
 
-3. Copy the bootstrap script and templates to the VPS:
+3. Copy the bootstrap script, templates, and helper scripts to the VPS:
    ```
    scp scripts/bootstrap-vps.sh root@<ip>:/root/
    scp templates/tmux.conf root@<ip>:/root/tmux.conf
    scp templates/global-claude-md.md root@<ip>:/root/global-claude-md.md
+   scp scripts/vps-clone.sh root@<ip>:/root/vps-clone
+   scp scripts/vps-sync-repo.sh root@<ip>:/root/vps-sync-repo
    ```
 
-4. Run bootstrap remotely:
+4. Detect the laptop's Tailscale hostname (so the bootstrap can persist it for the helpers):
    ```
-   ssh root@<ip> "TS_AUTH_KEY=<key> bash /root/bootstrap-vps.sh"
+   LAPTOP_HOSTNAME=$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')
+   ```
+   If `tailscale` isn't running on the laptop, leave `LAPTOP_HOSTNAME` empty — the helpers will still work once the user manually exports `LAPTOP_HOST=...` in their VPS shell.
+
+5. Run bootstrap remotely:
+   ```
+   ssh root@<ip> "TS_AUTH_KEY=<key> LAPTOP_HOSTNAME=<laptop-hostname> bash /root/bootstrap-vps.sh"
    ```
    Stream the output so the user can see progress. If it fails, don't try to recover silently — show them the error and stop.
 
-5. Fetch the VPS's Tailscale hostname:
+6. Fetch the VPS's Tailscale hostname:
    ```
    ssh root@<ip> "sudo -u agent tailscale status --json | jq -r '.Self.DNSName' | sed 's/\\.$//'"
    ```
 
-6. Test Tailscale SSH from the laptop:
+7. Test Tailscale SSH from the laptop:
    ```
    ssh agent@<tailscale-hostname> true
    ```
@@ -97,5 +105,8 @@ Tell the user:
 - VPS public IP (for reference; they shouldn't need it again)
 - Tailscale hostname (the thing they'll SSH to)
 - Exact SSH command to try from their laptop: `ssh agent@<tailscale-hostname>`
-- Exact workflow for their phone: install Terminus/Blink, create a host using the Tailscale hostname, user `agent`, same SSH key
+- Exact workflow for their phone: install Termius/Blink, create a host using the Tailscale hostname, user `agent`, same SSH key
+- The two repo helpers installed on the VPS: `vps-clone <owner/repo>` (clone + sync gitignored `.claude/` files from laptop) and `vps-sync-repo` (re-sync after the fact). Note that `LAPTOP_HOST` is already set in the agent's `.bashrc` if step 4 found it.
+- Claude Code on the VPS defaults to `--effort max` via a shell alias, since long-running remote sessions are the normal use case for this setup.
+- The user must run `claude setup-token` once on the VPS to authenticate. Show the exact command.
 - Next steps based on what they answered for Paper/HTTPS: suggest `/add-paper` or `/add-https`

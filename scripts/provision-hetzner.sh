@@ -5,7 +5,7 @@
 #   HCLOUD_TOKEN   Hetzner API token with Read & Write scope
 #   VM_NAME        Name to assign the VM
 #   VM_LOCATION    e.g. nbg1, fsn1, hel1, ash, hil, sin
-#   VM_TYPE        e.g. cx22, cx32, cpx22
+#   VM_TYPE        e.g. cx23, cx33, cpx22
 #   SSH_KEY_PATH   Path to a public SSH key file on this machine
 #
 # Prints the VM's public IPv4 on the last line of stdout.

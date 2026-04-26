@@ -71,21 +71,13 @@ sed -i \
   /etc/ssh/sshd_config
 systemctl reload ssh
 
-echo "==> Installing Node via nvm for '$AGENT_USER'..."
+echo "==> Installing Claude Code (native installer)..."
 sudo -u "$AGENT_USER" -i bash <<'AGENT_EOF'
 set -euo pipefail
-if [[ ! -d "$HOME/.nvm" ]]; then
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+if ! command -v claude >/dev/null 2>&1; then
+  curl -fsSL https://claude.ai/install.sh | bash
 fi
-export NVM_DIR="$HOME/.nvm"
-# shellcheck disable=SC1091
-source "$NVM_DIR/nvm.sh"
-nvm install --lts
-nvm alias default 'lts/*'
-echo "Node: $(node --version), npm: $(npm --version)"
-
-echo "==> Installing Claude Code..."
-npm install -g @anthropic-ai/claude-code
+echo "Claude Code: $("$HOME/.local/bin/claude" --version)"
 AGENT_EOF
 
 echo "==> Dropping tmux config and global CLAUDE.md..."

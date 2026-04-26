@@ -114,5 +114,5 @@ Tell the user:
 - Exact workflow for their phone: install Termius/Blink, create a host using the Tailscale hostname, user `agent`, same SSH key
 - The two repo helpers installed on the VPS: `vps-clone <owner/repo>` (clone + sync gitignored `.claude/` files from laptop) and `vps-sync-repo` (re-sync after the fact). Note that `LAPTOP_HOST` is already set in the agent's `.bashrc` if step 4 found it.
 - Claude Code on the VPS defaults to `--effort max` via a shell alias, since long-running remote sessions are the normal use case for this setup.
-- The user must run `claude setup-token` once on the VPS to authenticate. Show the exact command.
+- The user must run `claude` once on the VPS to complete first-run OAuth. The CLI prints a login URL; the user pastes it into their laptop's browser, signs in, then pastes the auth code back into the SSH terminal. Credentials are saved to `~/.claude/.credentials.json`. Show the exact command: `ssh agent@<tailscale-hostname> -t claude` (the `-t` forces TTY allocation so the interactive prompt works).
 - Next steps based on what they answered for Paper/HTTPS: suggest `/add-paper` or `/add-https`

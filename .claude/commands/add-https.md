@@ -1,6 +1,8 @@
 # /add-https
 
-Add a Caddy reverse proxy with auto-issued Let's Encrypt cert, so a dev server running on the VPS is reachable at `https://<domain>` from the user's phone.
+Add a Caddy reverse proxy with auto-issued Let's Encrypt cert, so a dev server running on the VPS is reachable at `https://<domain>` from any browser — useful for OAuth callbacks, webhooks (Stripe, GitHub, Slack), mobile testing on real devices, and sharing previews with collaborators not on your tailnet.
+
+> **Status: untested.** This command is wired but has not been run end-to-end against a real VPS. The shape is correct based on the Caddy and Hetzner docs, but expect to debug at least one thing on first run. Treat it as a starting point, not a finished product.
 
 ## Before you start
 

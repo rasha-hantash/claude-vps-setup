@@ -7,7 +7,11 @@ Main wizard. Provisions a Hetzner VM, hardens it, installs Tailscale and Claude 
 1. Check whether `./.setup-state.json` already exists. If it does, ask the user whether they want to reconfigure an existing VPS or start over — don't silently overwrite.
 2. Check whether `hcloud` is on PATH. If not, use `AskUserQuestion` to ask whether to install via `brew install hcloud` (assume macOS unless `uname` says otherwise). On confirmation, run the install. If they decline, on a non-macOS system, or if Homebrew is missing, point at https://github.com/hetznercloud/cli/releases and stop. Never install silently — always confirm first since this CLI ends up on their PATH.
 3. Check whether `tailscale` is on PATH. If not, follow the same `AskUserQuestion` pattern — offer `brew install tailscale` on macOS, otherwise direct them to https://tailscale.com/download. Note: Tailscale also requires the user to log in via the GUI app (one-time, browser-based) before `tailscale status` will return a hostname. Surface this as a follow-up step if the install succeeds.
-4. Check that an SSH public key exists at `~/.ssh/id_ed25519.pub` (or wherever the user points you). If none, ask via `AskUserQuestion` whether to run `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""` (no passphrase) — confirm explicitly because keypairs persist. If they decline, stop with the manual command.
+4. SSH key check:
+   a. Scan `~/.ssh/*.pub` for existing public keys. Filter to lines whose first whitespace-separated token is `ssh-ed25519`, `ssh-rsa`, or `ecdsa-sha2-*` (skip stray files that aren't actually keys).
+   b. If one or more valid keys exist, present them via `AskUserQuestion`: "Use existing key, or generate a new one?". Default to the first ed25519 key if available; otherwise the first valid key. Capture the chosen `.pub` path — the corresponding private key is the same path without `.pub`. Don't generate a new key when a usable one already exists unless the user explicitly opts to.
+   c. If none exist (or the user opts to generate fresh), ask via `AskUserQuestion` whether to run `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""` (no passphrase). Confirm explicitly — keypairs persist on disk.
+   d. If they decline both options, stop with the manual `ssh-keygen` command.
 
 When asking via `AskUserQuestion`, batch the missing prereqs into a single question if there are several — "Install hcloud and tailscale via brew? [Y/n]" — rather than asking one at a time.
 

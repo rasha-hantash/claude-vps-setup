@@ -5,9 +5,11 @@ Main wizard. Provisions a Hetzner VM, hardens it, installs Tailscale and Claude 
 ## Before you start
 
 1. Check whether `./.setup-state.json` already exists. If it does, ask the user whether they want to reconfigure an existing VPS or start over — don't silently overwrite.
-2. Check whether `hcloud` is on PATH. If not, tell the user to install it (`brew install hcloud` on macOS, or point at https://github.com/hetznercloud/cli/releases) and stop. Don't install it silently — this is a CLI that ends up in their shell.
-3. Check whether `tailscale` is on PATH. If not, same pattern — stop and tell them.
-4. Check that an SSH public key exists at `~/.ssh/id_ed25519.pub` (or wherever the user points you). If none, tell them to run `ssh-keygen -t ed25519` and stop.
+2. Check whether `hcloud` is on PATH. If not, use `AskUserQuestion` to ask whether to install via `brew install hcloud` (assume macOS unless `uname` says otherwise). On confirmation, run the install. If they decline, on a non-macOS system, or if Homebrew is missing, point at https://github.com/hetznercloud/cli/releases and stop. Never install silently — always confirm first since this CLI ends up on their PATH.
+3. Check whether `tailscale` is on PATH. If not, follow the same `AskUserQuestion` pattern — offer `brew install tailscale` on macOS, otherwise direct them to https://tailscale.com/download. Note: Tailscale also requires the user to log in via the GUI app (one-time, browser-based) before `tailscale status` will return a hostname. Surface this as a follow-up step if the install succeeds.
+4. Check that an SSH public key exists at `~/.ssh/id_ed25519.pub` (or wherever the user points you). If none, ask via `AskUserQuestion` whether to run `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""` (no passphrase) — confirm explicitly because keypairs persist. If they decline, stop with the manual command.
+
+When asking via `AskUserQuestion`, batch the missing prereqs into a single question if there are several — "Install hcloud and tailscale via brew? [Y/n]" — rather than asking one at a time.
 
 ## Collect inputs (use `AskUserQuestion`, one at a time)
 

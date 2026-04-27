@@ -15,17 +15,35 @@ Main wizard. Provisions a Hetzner VM, hardens it, installs Tailscale and Claude 
 
 When asking via `AskUserQuestion`, batch the missing prereqs into a single question if there are several — "Install hcloud and tailscale via brew? [Y/n]" — rather than asking one at a time.
 
+## Required secrets (env vars only — never via `AskUserQuestion`)
+
+Two secrets are needed: `HCLOUD_TOKEN` (Hetzner API token, Read & Write scope) and `TS_AUTHKEY` (Tailscale reusable auth key). Both **must** be set in the shell that started `claude`. Never prompt for these via `AskUserQuestion` — that widget renders pasted text in plaintext in the option list, leaking the secret into terminal scrollback and the session transcript.
+
+Check both env vars before doing anything else (after the prereq checks above). If either is unset, print this exact block and stop:
+
+> Two secrets need to live in your shell environment before `/setup` can run:
+>
+> ```bash
+> # Hetzner API token — console.hetzner.cloud → your project → Security → API tokens → Generate (Read & Write)
+> export HCLOUD_TOKEN=<paste-token>
+>
+> # Tailscale auth key — login.tailscale.com/admin/settings/keys → Generate (reusable, 90-day expiry is fine)
+> export TS_AUTHKEY=<paste-key>
+> ```
+>
+> Run those in the same terminal you launched `claude` from, then re-run `/setup`. Env vars die when the shell closes — they aren't written to disk.
+
+Do not offer to set them for the user. Do not paste the token into chat. Do not store them in `.setup-state.json`. The wizard reads them from its own environment when shelling out (`hcloud` and the bootstrap script).
+
 ## Collect inputs (use `AskUserQuestion`, one at a time)
 
 Ask each of these as a separate `AskUserQuestion` call:
 
-1. **Hetzner API token.** Freeform. Before asking, paste this in chat so the user can see what to do:
-   > Go to https://console.hetzner.cloud/ → your project → Security → API tokens → Generate API token. Give it **Read & Write** scope. Copy the token and paste it below. The token is only shown once.
-2. **VM type.** Multiple choice — pulled live from Hetzner. Pick the spec first; the location prompt that follows will only show regions where the chosen type can actually be provisioned. (Hetzner rolls out new types EU-first, so `cx23` is currently NBG-1 / HEL-1 only, while `cpx22` and `cx22` are available across all regions. Asking spec first avoids dead-end paths.)
+1. **VM type.** Multiple choice — pulled live from Hetzner. Pick the spec first; the location prompt that follows will only show regions where the chosen type can actually be provisioned. (Hetzner rolls out new types EU-first, so `cx23` is currently NBG-1 / HEL-1 only, while `cpx22` and `cx22` are available across all regions. Asking spec first avoids dead-end paths.)
 
-   Pull the list:
+   Pull the list (`hcloud` reads `HCLOUD_TOKEN` from env automatically):
    ```
-   HCLOUD_TOKEN=<token> hcloud server-type list -o json | \
+   hcloud server-type list -o json | \
      jq -r '
        .[]
        | select(.deprecated == null)
@@ -41,7 +59,7 @@ Ask each of these as a separate `AskUserQuestion` call:
    ```
    Present each type as: `<name> — <cores> vCPU / <memory> GB — <description> — available in <locations> — from €<price>/mo`. Default to the cheapest non-deprecated `cx*` (Intel/AMD shared, cost-optimized) type with ≥4 GB RAM. If none match, fall back to the cheapest available type.
 
-3. **Region.** Multiple choice — only locations where the chosen type is available. Filter the same JSON:
+2. **Region.** Multiple choice — only locations where the chosen type is available. Filter the same JSON:
    ```
    <previous output> | jq -r --arg type "<chosen-type>" '
      map(select(.name == $type))
@@ -51,18 +69,16 @@ Ask each of these as a separate `AskUserQuestion` call:
    ```
    Then enrich each code with city / country via:
    ```
-   HCLOUD_TOKEN=<token> hcloud location list -o json | \
+   hcloud location list -o json | \
      jq -r '.[] | "\(.name)|\(.city)|\(.country)"'
    ```
    Present each as `<name> — <city>, <country>` (e.g., `nbg1 — Nuremberg, DE`). Default to whichever available location is geographically closest to the user's timezone if known; otherwise prompt without a default.
 
    If either query returns zero results, that's a bug — surface the raw API response and stop.
-4. **VM name.** Freeform. Default `claude-box`.
-5. **SSH public key path.** Freeform. Default `~/.ssh/id_ed25519.pub`. Verify the file exists before proceeding.
-6. **Tailscale auth key.** Freeform. Before asking, paste:
-   > Go to https://login.tailscale.com/admin/settings/keys → Generate auth key. Make it **reusable** and set an expiry you're comfortable with (90 days is fine). Copy the `tskey-auth-...` value and paste it below.
-7. **Will you want Paper Desktop integration later?** Yes/no. (Just recorded in state for `/add-paper` — don't act on it here.)
-8. **Will you want an HTTPS dev preview later?** Yes/no. (Same — recorded for `/add-https`.)
+3. **VM name.** Freeform. Default `claude-box`.
+4. **SSH public key path.** Freeform. Default `~/.ssh/id_ed25519.pub`. Verify the file exists before proceeding.
+5. **Will you want Paper Desktop integration later?** Yes/no. (Just recorded in state for `/add-paper` — don't act on it here.)
+6. **Will you want an HTTPS dev preview later?** Yes/no. (Same — recorded for `/add-https`.)
 
 ## Confirm
 
@@ -70,15 +86,14 @@ Before spending money, summarize the plan back to the user:
 
 > I'm about to create a `<chosen-type>` VM named `<chosen-name>` in `<chosen-region>`, register your SSH key, and run the bootstrap script to install Tailscale and Claude Code. This will cost ~€<live-monthly-price>/mo starting now (Hetzner bills hourly, so a few hours of testing is well under €0.05). Continue?
 
-Use the live monthly price from the server-type query in step 3 — don't hardcode a number.
+Use the live monthly price from the server-type query in step 1 — don't hardcode a number.
 
 Wait for explicit confirmation.
 
 ## Execute
 
-1. Provision the VM:
+1. Provision the VM (`HCLOUD_TOKEN` is inherited from the wizard's env — don't re-pass it on the command line):
    ```
-   HCLOUD_TOKEN=<token> \
    VM_NAME=<name> \
    VM_LOCATION=<region> \
    VM_TYPE=<type> \
@@ -104,11 +119,11 @@ Wait for explicit confirmation.
    ```
    If `tailscale` isn't running on the laptop, leave `LAPTOP_HOSTNAME` empty — the helpers will still work once the user manually exports `LAPTOP_HOST=...` in their VPS shell.
 
-5. Run bootstrap remotely:
+5. Run bootstrap remotely (forward `TS_AUTHKEY` from the wizard's env into the SSH session — don't echo it to chat):
    ```
-   ssh root@<ip> "TS_AUTH_KEY=<key> LAPTOP_HOSTNAME=<laptop-hostname> bash /root/bootstrap-vps.sh"
+   ssh root@<ip> "TS_AUTHKEY='$TS_AUTHKEY' LAPTOP_HOSTNAME='<laptop-hostname>' bash /root/bootstrap-vps.sh"
    ```
-   Stream the output so the user can see progress. If it fails, don't try to recover silently — show them the error and stop.
+   Note the single quotes around `'$TS_AUTHKEY'` — they prevent the shell on the VPS from re-interpreting the value, and the surrounding double quotes let the local shell expand the variable. Stream the output so the user can see progress. If it fails, don't try to recover silently — show them the error and stop.
 
 6. Fetch the VPS's Tailscale hostname:
    ```

@@ -108,6 +108,6 @@ v0. Baseline setup runs end-to-end against a real Hetzner account and produces a
 
 Known sharp edges:
 
-- **First-run rsync of `.claude/worktrees/` can be heavy.** The helper sends every gitignored file under `.claude/` from the matching repo on your laptop, which includes worktree directories with their own `node_modules`. Multi-GB syncs take 5–30 min on home upload bandwidth. `du -sh .claude/` on the laptop tells you the payload before you commit. A future improvement will prune merged + clean worktrees before sync.
+- **`.claude/worktrees/` is skipped by default during sync.** Worktree directories contain entire working copies with their own `node_modules` and build artifacts, which can push a single repo's `.claude/` payload past 5 GB and fill a 40 GB cx23 disk fast. If you actually want them on the VPS, set `VPS_SYNC_INCLUDE_WORKTREES=1` in the agent's shell before running `vps-clone` or `vps-sync-repo`. A future improvement will prune merged + clean worktrees before sync so the opt-in becomes lighter.
 - **`/add-paper`** has known unknowns documented in `docs/known-unknowns.md` — read it before running.
 - **`/add-https`** is wired but has not been run end-to-end against a real VPS. Expect to debug at least one thing on first run.

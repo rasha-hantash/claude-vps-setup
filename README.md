@@ -23,6 +23,7 @@ The default pick is the cheapest non-deprecated `cx*` (Intel/AMD shared) instanc
 ## What it installs on the VPS
 
 - **Claude Code** (native installer, auto-updates — no Node toolchain required)
+- **[cove](https://github.com/rasha-hantash/cove)** (Claude Code session manager) installed via rustup + `cargo install cove-cli`. With one alias on your laptop you can `cove vps` to drop into a remote session with the same pane layout you have locally — see [Using cove](#using-cove-from-your-laptop) below.
 - **Tailscale** (`--ssh` enabled; SSH is *only* reachable over the tailnet, not the public internet)
 - **GitHub CLI** (`gh`) so the included `vps-clone <owner/repo>` helper works for private repos
 - **tmux**, **zsh**, **jq**, plus the helpers `vps-clone` and `vps-sync-repo`
@@ -82,6 +83,32 @@ Follow-up commands:
 - `/add-paper` — bridge Paper Desktop's MCP server from your laptop to the VPS
 - `/add-chrome` — bridge `claude-in-chrome` (browser automation MCP) from your laptop to the VPS, so VPS Claude has the same browser tools you'd have locally
 - `/add-https` — add a Caddy + Let's Encrypt preview at `https://your.domain` for any dev server on the VPS
+
+## Using cove from your laptop
+
+[cove](https://github.com/rasha-hantash/cove) is a small Rust CLI that wraps `tmux` + `claude` so a single command starts or resumes a Claude Code session in a structured pane layout. The bootstrap installs it on the VPS; pair it with one alias on the laptop and you can run `cove vps` to drop into a remote cove session over SSH.
+
+1. **SSH config alias** in `~/.ssh/config`:
+
+   ```
+   Host claude-box
+     HostName claude-box.tail-abc123.ts.net
+     User agent
+     IdentityFile ~/.ssh/id_ed25519
+   ```
+
+2. **Env var** in your shell profile:
+
+   ```sh
+   export COVE_DEFAULT_VPS=claude-box
+   # Optional: directory cove cd's into on the remote before starting cove.
+   # Skip if landing in $HOME is fine.
+   # export COVE_DEFAULT_REMOTE_DIR=~/workspace
+   ```
+
+3. **Run** `cove vps` — SSHes via the alias, optionally `cd`s, and execs remote cove.
+
+If `~/.claude/settings.json` was synced during setup, cove's session-state hooks come along for free. If not, run `cove init` once on the VPS.
 
 ## Running it without the agent
 

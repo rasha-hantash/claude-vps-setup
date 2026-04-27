@@ -114,6 +114,25 @@ fi
 echo "Claude Code: $("$HOME/.local/bin/claude" --version)"
 AGENT_EOF
 
+echo "==> Installing cove (Claude Code session manager)..."
+# cove wraps tmux + claude so `cove vps` from the laptop drops into a remote
+# session with the same pane layout you have locally. Installed via rustup +
+# crates.io so the VPS has a Rust toolchain available for other tools later.
+# Build is a few minutes on a 2 vCPU box but happens once at provision time.
+sudo -u "$AGENT_USER" -i bash <<'AGENT_EOF'
+set -euo pipefail
+if [[ ! -x "$HOME/.cargo/bin/cove" ]]; then
+  if [[ ! -x "$HOME/.cargo/bin/cargo" ]]; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+    sh /tmp/rustup-init.sh -y --default-toolchain stable --profile minimal
+    rm -f /tmp/rustup-init.sh
+  fi
+  . "$HOME/.cargo/env"
+  cargo install cove-cli
+fi
+echo "cove: $("$HOME/.cargo/bin/cove" --version)"
+AGENT_EOF
+
 echo "==> Dropping tmux config and global CLAUDE.md..."
 if [[ -f /root/tmux.conf ]]; then
   install -o "$AGENT_USER" -g "$AGENT_USER" -m 0644 /root/tmux.conf "/home/$AGENT_USER/.tmux.conf"

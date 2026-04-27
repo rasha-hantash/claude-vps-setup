@@ -71,6 +71,19 @@ sed -i \
   /etc/ssh/sshd_config
 systemctl reload ssh
 
+echo "==> Installing GitHub CLI (gh) from official apt source..."
+if ! command -v gh >/dev/null 2>&1; then
+  KEYRING=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /tmp/gh-keyring.gpg
+  install -m 0644 /tmp/gh-keyring.gpg "$KEYRING"
+  rm -f /tmp/gh-keyring.gpg
+  ARCH="$(dpkg --print-architecture)"
+  echo "deb [arch=$ARCH signed-by=$KEYRING] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+  apt-get update -qq
+  apt-get install -y -qq gh
+fi
+
 echo "==> Installing Claude Code (native installer)..."
 sudo -u "$AGENT_USER" -i bash <<'AGENT_EOF'
 set -euo pipefail

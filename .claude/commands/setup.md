@@ -17,7 +17,7 @@ When asking via `AskUserQuestion`, batch the missing prereqs into a single quest
 
 ## Required secrets (env vars only — never via `AskUserQuestion`)
 
-Two secrets are needed: `HCLOUD_TOKEN` (Hetzner API token, Read & Write scope) and `TS_AUTHKEY` (Tailscale reusable auth key). Both **must** be set in the shell that started `claude`. Never prompt for these via `AskUserQuestion` — that widget renders pasted text in plaintext in the option list, leaking the secret into terminal scrollback and the session transcript.
+Two secrets are needed: `HCLOUD_TOKEN` (Hetzner API token, Read & Write scope) and `TS_AUTH_KEY` (Tailscale reusable auth key). Both **must** be set in the shell that started `claude`. Never prompt for these via `AskUserQuestion` — that widget renders pasted text in plaintext in the option list, leaking the secret into terminal scrollback and the session transcript.
 
 Check both env vars before doing anything else (after the prereq checks above). If either is unset, print this exact block and stop:
 
@@ -28,7 +28,7 @@ Check both env vars before doing anything else (after the prereq checks above). 
 > export HCLOUD_TOKEN=<paste-token>
 >
 > # Tailscale auth key — login.tailscale.com/admin/settings/keys → Generate (reusable, 90-day expiry is fine)
-> export TS_AUTHKEY=<paste-key>
+> export TS_AUTH_KEY=<paste-key>
 > ```
 >
 > Run those in the same terminal you launched `claude` from, then re-run `/setup`. Env vars die when the shell closes — they aren't written to disk.
@@ -119,11 +119,11 @@ Wait for explicit confirmation.
    ```
    If `tailscale` isn't running on the laptop, leave `LAPTOP_HOSTNAME` empty — the helpers will still work once the user manually exports `LAPTOP_HOST=...` in their VPS shell.
 
-5. Run bootstrap remotely (forward `TS_AUTHKEY` from the wizard's env into the SSH session — don't echo it to chat):
+5. Run bootstrap remotely (forward `TS_AUTH_KEY` from the wizard's env into the SSH session — don't echo it to chat):
    ```
-   ssh root@<ip> "TS_AUTHKEY='$TS_AUTHKEY' LAPTOP_HOSTNAME='<laptop-hostname>' bash /root/bootstrap-vps.sh"
+   ssh root@<ip> "TS_AUTH_KEY='$TS_AUTH_KEY' LAPTOP_HOSTNAME='<laptop-hostname>' bash /root/bootstrap-vps.sh"
    ```
-   Note the single quotes around `'$TS_AUTHKEY'` — they prevent the shell on the VPS from re-interpreting the value, and the surrounding double quotes let the local shell expand the variable. Stream the output so the user can see progress. If it fails, don't try to recover silently — show them the error and stop.
+   Note the single quotes around `'$TS_AUTH_KEY'` — they prevent the shell on the VPS from re-interpreting the value, and the surrounding double quotes let the local shell expand the variable. Stream the output so the user can see progress. If it fails, don't try to recover silently — show them the error and stop.
 
 6. Fetch the VPS's Tailscale hostname:
    ```
@@ -166,4 +166,5 @@ Tell the user:
 - The two repo helpers installed on the VPS: `vps-clone <owner/repo>` (clone + sync gitignored `.claude/` files from laptop) and `vps-sync-repo` (re-sync after the fact). Note that `LAPTOP_HOST` is already set in the agent's `.bashrc` if step 4 found it.
 - Claude Code on the VPS defaults to `--effort max` via a shell alias, since long-running remote sessions are the normal use case for this setup.
 - The user must run `claude` once on the VPS to complete first-run OAuth. The CLI prints a login URL; the user pastes it into their laptop's browser, signs in, then pastes the auth code back into the SSH terminal. Credentials are saved to `~/.claude/.credentials.json`. Show the exact command: `ssh agent@<tailscale-hostname> -t claude` (the `-t` forces TTY allocation so the interactive prompt works).
+- The user must also run `gh auth login` once on the VPS so `vps-clone <owner/repo>` can clone private repos. Same TTY pattern — show: `ssh agent@<tailscale-hostname> -t gh auth login`. Pick GitHub.com → HTTPS → device code flow (it prints an 8-char code; the user opens https://github.com/login/device on their laptop and pastes it).
 - Next steps based on what they answered for Paper/HTTPS: suggest `/add-paper` or `/add-https`

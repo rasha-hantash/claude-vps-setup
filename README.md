@@ -80,6 +80,7 @@ The wizard also offers (opt-in, default Yes) to rsync your personal `~/.claude/`
 Follow-up commands:
 
 - `/add-paper` — bridge Paper Desktop's MCP server from your laptop to the VPS
+- `/add-chrome` — bridge `claude-in-chrome` (browser automation MCP) from your laptop to the VPS, so VPS Claude has the same browser tools you'd have locally
 - `/add-https` — add a Caddy + Let's Encrypt preview at `https://your.domain` for any dev server on the VPS
 
 ## Running it without the agent

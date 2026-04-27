@@ -23,7 +23,6 @@ The default pick is the cheapest non-deprecated `cx*` (Intel/AMD shared) instanc
 ## What it installs on the VPS
 
 - **Claude Code** (native installer, auto-updates — no Node toolchain required)
-- **[cove](https://github.com/rasha-hantash/cove)** (Claude Code session manager) installed via rustup + `cargo install cove-cli`. With one alias on your laptop you can `cove vps` to drop into a remote session with the same pane layout you have locally — see [Using cove](#using-cove-from-your-laptop) below.
 - **Tailscale** (`--ssh` enabled; SSH is *only* reachable over the tailnet, not the public internet)
 - **GitHub CLI** (`gh`) so the included `vps-clone <owner/repo>` helper works for private repos
 - **tmux**, **zsh**, **jq**, plus the helpers `vps-clone` and `vps-sync-repo`
@@ -84,11 +83,23 @@ Follow-up commands:
 - `/add-chrome` — bridge `claude-in-chrome` (browser automation MCP) from your laptop to the VPS, so VPS Claude has the same browser tools you'd have locally
 - `/add-https` — add a Caddy + Let's Encrypt preview at `https://your.domain` for any dev server on the VPS
 
-## Using cove from your laptop
+## Optional: cove for one-command remote sessions
 
-[cove](https://github.com/rasha-hantash/cove) is a small Rust CLI that wraps `tmux` + `claude` so a single command starts or resumes a Claude Code session in a structured pane layout. The bootstrap installs it on the VPS; pair it with one alias on the laptop and you can run `cove vps` to drop into a remote cove session over SSH.
+If you already use [cove](https://github.com/rasha-hantash/cove) locally, you can run `cove vps` from your laptop to drop into a remote Claude Code session with the same pane layout. The setup wizard does **not** install cove — it's a separate tool with its own Rust toolchain footprint, so it's left to opt in.
 
-1. **SSH config alias** in `~/.ssh/config`:
+To wire it up after `/setup`:
+
+1. Install cove on the VPS:
+
+   ```sh
+   ssh agent@<your-vps-host>
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/r.sh \
+     && sh /tmp/r.sh -y --profile minimal --default-toolchain stable
+   . "$HOME/.cargo/env"
+   cargo install cove-cli
+   ```
+
+2. Add an alias to `~/.ssh/config` on your laptop (so cove only sees the alias name):
 
    ```
    Host claude-box
@@ -97,18 +108,13 @@ Follow-up commands:
      IdentityFile ~/.ssh/id_ed25519
    ```
 
-2. **Env var** in your shell profile:
+3. Export the default VPS in your shell profile:
 
    ```sh
    export COVE_DEFAULT_VPS=claude-box
-   # Optional: directory cove cd's into on the remote before starting cove.
-   # Skip if landing in $HOME is fine.
-   # export COVE_DEFAULT_REMOTE_DIR=~/workspace
    ```
 
-3. **Run** `cove vps` — SSHes via the alias, optionally `cd`s, and execs remote cove.
-
-If `~/.claude/settings.json` was synced during setup, cove's session-state hooks come along for free. If not, run `cove init` once on the VPS.
+4. Run `cove vps`.
 
 ## Running it without the agent
 

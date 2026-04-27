@@ -14,19 +14,45 @@ The installer is driven by Claude Code itself — you run `claude` in this repo 
                                    └─ Caddy (optional HTTPS preview)
 ```
 
+## Why Hetzner
+
+Hetzner Cloud is cheap (the recommended `cx23` is roughly €4.49/mo at the time of writing — billed *hourly*, so a few hours of testing is well under €0.05), German-headquartered with EU privacy defaults, and has straightforward CLI/API surface. The wizard pulls live pricing and availability from the API at runtime — no hardcoded specs to drift.
+
+The default pick is the cheapest non-deprecated `cx*` (Intel/AMD shared) instance with ≥4 GB RAM. You can override interactively if you want more cores or RAM (`cx33`, `cpx32`, etc.). Hetzner ships new types EU-first, so if you want a US East / US West / Singapore region, the wizard automatically filters to instance types actually provisionable there.
+
+## What it installs on the VPS
+
+- **Claude Code** (native installer, auto-updates — no Node toolchain required)
+- **Tailscale** (`--ssh` enabled; SSH is *only* reachable over the tailnet, not the public internet)
+- **GitHub CLI** (`gh`) so the included `vps-clone <owner/repo>` helper works for private repos
+- **tmux**, **zsh**, **jq**, plus the helpers `vps-clone` and `vps-sync-repo`
+- **UFW firewall** (deny-all incoming except Tailscale; SSH is closed to the public internet)
+- A non-root user `agent` with passwordless `sudo`, an SSH keypair (so the VPS can rsync gitignored `.claude/` files back from your laptop), and a `claude --effort max` shell alias
+
 ## Prerequisites on your laptop
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and logged in
-- A Hetzner Cloud account with an API token (the `/setup` command walks you to the console)
-- A Tailscale account (free tier is fine)
-- An SSH keypair at `~/.ssh/id_ed25519.pub` (or another path you'll provide)
+- A Hetzner Cloud account with an API token (Read & Write scope — instructions in step 1 below)
+- A Tailscale account (free tier is fine), the [Tailscale macOS/Windows app](https://tailscale.com/download), and the daemon actually running before you start
+- An SSH keypair at `~/.ssh/id_ed25519.pub` (or another path you'll provide; the wizard offers to generate one if you don't have any)
+- **macOS Remote Login enabled**: System Settings → General → Sharing → Remote Login → ON. This is what lets the VPS rsync `.claude/` content back from your laptop. Off by default.
 - For the Paper bridge: Paper Desktop installed locally
 
 The `hcloud` and `tailscale` CLIs are installed by the script if missing.
 
 ## Quick start
 
+The wizard reads two secrets from your shell environment instead of prompting for them — this avoids leaking tokens into terminal scrollback or the session transcript. Set them before launching `claude`:
+
 ```bash
+# Hetzner API token
+#   console.hetzner.cloud → your project → Security → API tokens → Generate (Read & Write)
+export HCLOUD_TOKEN=<paste-token>
+
+# Tailscale auth key (make it reusable, 90-day expiry is fine)
+#   login.tailscale.com/admin/settings/keys → Generate
+export TS_AUTH_KEY=<paste-key>
+
 git clone <this-repo>
 cd claude-vps-setup
 claude
@@ -38,11 +64,23 @@ Inside Claude Code:
 /setup
 ```
 
+> **Note:** the slash command is loaded from `.claude/commands/setup.md` in this repo. If you see `Unknown command: /setup`, you launched `claude` from a different directory — `cd` into the cloned `claude-vps-setup` first.
+
 Follow the prompts. When it's done you'll have a VPS reachable from your phone over Tailscale with Claude Code ready to use.
+
+Two manual one-time auth steps remain on the VPS itself (no automation can skip these without forwarding tokens you don't want forwarded):
+
+```bash
+ssh agent@<tailscale-hostname> -t claude          # Claude Code OAuth
+ssh agent@<tailscale-hostname> -t gh auth login   # GitHub auth (HTTPS or device flow)
+```
+
+The wizard also offers (opt-in, default Yes) to rsync your personal `~/.claude/` config — `CLAUDE.md`, `hooks/`, `agents/`, `skills/`, `commands/`, `settings.json` — from your laptop to the VPS so Claude Code there boots with the same global setup you have locally. `~/.claude/projects/` (per-session state) and `~/.claude/.credentials.json` (OAuth) are intentionally not synced; credentials regenerate on the VPS during the `claude` first-run above. If hooks or scripts in your config reference absolute laptop paths (e.g. `/Users/yourname/...`), they won't resolve on the VPS — patch those after sync.
 
 Follow-up commands:
 
 - `/add-paper` — bridge Paper Desktop's MCP server from your laptop to the VPS
+- `/add-chrome` — bridge `claude-in-chrome` (browser automation MCP) from your laptop to the VPS, so VPS Claude has the same browser tools you'd have locally
 - `/add-https` — add a Caddy + Let's Encrypt preview at `https://your.domain` for any dev server on the VPS
 
 ## Running it without the agent
@@ -66,4 +104,10 @@ A few minutes that no automation can compress: generating the Hetzner API token 
 
 ## Status
 
-v0. Works end-to-end for the baseline setup. The Paper bridge has known unknowns documented in `docs/known-unknowns.md` that you'll want to read before running `/add-paper`.
+v0. Baseline setup runs end-to-end against a real Hetzner account and produces a working VPS reachable over Tailscale with `vps-clone` + `vps-sync-repo` functional after the auth steps above.
+
+Known sharp edges:
+
+- **`.claude/worktrees/` is skipped by default during sync.** Worktree directories contain entire working copies with their own `node_modules` and build artifacts, which can push a single repo's `.claude/` payload past 5 GB and fill a 40 GB cx23 disk fast. If you actually want them on the VPS, set `VPS_SYNC_INCLUDE_WORKTREES=1` in the agent's shell before running `vps-clone` or `vps-sync-repo`. A future improvement will prune merged + clean worktrees before sync so the opt-in becomes lighter.
+- **`/add-paper`** has known unknowns documented in `docs/known-unknowns.md` — read it before running.
+- **`/add-https`** is wired but has not been run end-to-end against a real VPS. Expect to debug at least one thing on first run.

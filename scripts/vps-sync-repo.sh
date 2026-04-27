@@ -5,10 +5,14 @@
 # grants and machine-local hooks you've already approved on the laptop.
 #
 # Required env:
-#   LAPTOP_HOST           Tailscale hostname of laptop (e.g., laptop.tail-abc.ts.net)
+#   LAPTOP_HOST                    Tailscale hostname of laptop (e.g., user@laptop.tail-abc.ts.net)
 #
 # Optional env:
-#   LAPTOP_WORKSPACE      Workspace root to search on laptop (default: $HOME/workspace)
+#   LAPTOP_WORKSPACE               Workspace root to search on laptop (default: $HOME/workspace)
+#   VPS_SYNC_INCLUDE_WORKTREES     If set to 1, also sync .claude/worktrees/. Off by default —
+#                                  worktrees with their own node_modules / build artifacts can
+#                                  push the payload into multi-GB territory and fill a small
+#                                  VPS disk fast. Set this only when you actually want them.
 
 set -euo pipefail
 
@@ -51,8 +55,19 @@ echo "==> Found: $LAPTOP_HOST:$LAPTOP_REPO"
 
 GITIGNORED=$(ssh "$LAPTOP_HOST" "cd '$LAPTOP_REPO' && git ls-files --others --ignored --exclude-standard .claude/ 2>/dev/null" || true)
 
+# Skip .claude/worktrees/ by default — they tend to contain entire working copies with
+# node_modules and build artifacts, which can balloon to several GB and fill a small VPS disk.
+# Users who genuinely want their worktrees synced can set VPS_SYNC_INCLUDE_WORKTREES=1.
+if [[ -n "$GITIGNORED" && "${VPS_SYNC_INCLUDE_WORKTREES:-0}" != "1" ]]; then
+  WORKTREE_COUNT=$(echo "$GITIGNORED" | grep -c '^\.claude/worktrees/' || true)
+  if [[ "$WORKTREE_COUNT" -gt 0 ]]; then
+    echo "==> Skipping $WORKTREE_COUNT files under .claude/worktrees/ (set VPS_SYNC_INCLUDE_WORKTREES=1 to include)."
+    GITIGNORED=$(echo "$GITIGNORED" | grep -v '^\.claude/worktrees/' || true)
+  fi
+fi
+
 if [[ -z "$GITIGNORED" ]]; then
-  echo "==> Laptop has no gitignored files in .claude/. Nothing to sync."
+  echo "==> Nothing to sync (laptop has no gitignored .claude/ files, or all of them were under worktrees and were skipped)."
   exit 0
 fi
 
@@ -60,6 +75,6 @@ echo "==> Syncing:"
 echo "$GITIGNORED" | sed 's/^/    /'
 
 mkdir -p .claude
-echo "$GITIGNORED" | rsync -av --files-from=- "$LAPTOP_HOST:$LAPTOP_REPO/" .
+echo "$GITIGNORED" | rsync -av --info=progress2 --files-from=- "$LAPTOP_HOST:$LAPTOP_REPO/" .
 
 echo "==> Done."

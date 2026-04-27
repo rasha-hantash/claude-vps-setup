@@ -60,6 +60,6 @@ echo "==> Syncing:"
 echo "$GITIGNORED" | sed 's/^/    /'
 
 mkdir -p .claude
-echo "$GITIGNORED" | rsync -av --files-from=- "$LAPTOP_HOST:$LAPTOP_REPO/" .
+echo "$GITIGNORED" | rsync -av --info=progress2 --files-from=- "$LAPTOP_HOST:$LAPTOP_REPO/" .
 
 echo "==> Done."

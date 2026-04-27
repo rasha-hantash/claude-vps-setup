@@ -158,6 +158,27 @@ Wait for explicit confirmation.
    ```
    If this fails, the most common cause is macOS Remote Login still off — surface the System Settings → General → Sharing → Remote Login instruction in the report-back. Don't block.
 
+10. Offer to sync the user's personal `~/.claude/` config to the VPS. Use `AskUserQuestion` with two options (default Yes):
+    > Sync your personal `~/.claude/` config (CLAUDE.md, hooks, agents, skills, commands, settings.json) to the VPS? Skip this if you want a clean global config on the box.
+
+    If yes:
+    ```
+    rsync -av --info=progress2 \
+      ~/.claude/CLAUDE.md \
+      ~/.claude/hooks \
+      ~/.claude/agents \
+      ~/.claude/skills \
+      ~/.claude/commands \
+      ~/.claude/settings.json \
+      agent@<tailscale-hostname>:~/.claude/
+    ```
+    Skip any path that doesn't exist on the laptop (rsync will already complain; just `2>/dev/null || true` per item if you want clean output, or run the command as-is and surface any missing-path warnings to the user).
+
+    Caveats to mention if Yes was chosen:
+    - Hooks or scripts referencing absolute laptop paths (`/Users/<name>/...`) won't resolve on the VPS — point this out so the user can patch them later.
+    - `~/.claude/projects/` (per-session state) and `~/.claude/.credentials.json` (OAuth) are intentionally **not** synced. Credentials should be regenerated on the VPS via `claude` first-run; project state is meant to be machine-local.
+    - `settings.local.json` is project-scoped, not global — also intentionally skipped.
+
 ## Persist state
 
 Write `./.setup-state.json`:

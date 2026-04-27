@@ -75,6 +75,8 @@ ssh agent@<tailscale-hostname> -t claude          # Claude Code OAuth
 ssh agent@<tailscale-hostname> -t gh auth login   # GitHub auth (HTTPS or device flow)
 ```
 
+The wizard also offers (opt-in, default Yes) to rsync your personal `~/.claude/` config — `CLAUDE.md`, `hooks/`, `agents/`, `skills/`, `commands/`, `settings.json` — from your laptop to the VPS so Claude Code there boots with the same global setup you have locally. `~/.claude/projects/` (per-session state) and `~/.claude/.credentials.json` (OAuth) are intentionally not synced; credentials regenerate on the VPS during the `claude` first-run above. If hooks or scripts in your config reference absolute laptop paths (e.g. `/Users/yourname/...`), they won't resolve on the VPS — patch those after sync.
+
 Follow-up commands:
 
 - `/add-paper` — bridge Paper Desktop's MCP server from your laptop to the VPS

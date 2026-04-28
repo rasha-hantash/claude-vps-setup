@@ -131,6 +131,11 @@ for helper in vps-clone vps-sync-repo; do
   fi
 done
 
+echo "==> Creating ~$AGENT_USER/workspace/ as the default repo directory..."
+# Matches the laptop's LAPTOP_WORKSPACE convention so vps-clone and vps-sync-repo
+# operate against the same relative layout on both ends.
+sudo -u "$AGENT_USER" mkdir -p "/home/$AGENT_USER/workspace"
+
 echo "==> Configuring agent's shell profile..."
 BASHRC="/home/$AGENT_USER/.bashrc"
 # Append once (idempotent) — skip if our marker is already present.

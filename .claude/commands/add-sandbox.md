@@ -37,6 +37,7 @@ The script:
 1. Installs Docker via the official `get.docker.com` one-liner (no-op if already installed).
 2. Builds the `claude-sandbox` image from the uploaded Dockerfile (first build downloads Ubuntu base + native installer; subsequent builds are cached).
 3. Installs the wrapper at `~/.local/bin/sandbox/claude` and prepends that dir to PATH in `~/.bashrc` (idempotent).
+4. Strips the bootstrap's `alias claude='claude --effort max'` line from `~/.bashrc`. The wrapper enforces `--effort max` already, so the alias would otherwise pass the flag twice on every invocation.
 
 The script needs `sudo` for the Docker install + first build. The agent user has passwordless sudo from `/setup`, so this runs without prompting.
 
@@ -70,11 +71,14 @@ If the user wants to revert:
 ssh agent@<host> bash -lc '
   rm -rf "$HOME/.local/bin/sandbox" "$HOME/claude-sandbox"
   sed -i "/claude-vps-sandbox-PATH/,+1d" "$HOME/.bashrc"
+  if ! grep -q "^alias claude=.claude --effort max." "$HOME/.bashrc"; then
+    printf "\n# Default Claude Code to maximum reasoning effort on the VPS.\nalias claude=\x27claude --effort max\x27\n" >> "$HOME/.bashrc"
+  fi
   docker rmi claude-sandbox || sudo docker rmi claude-sandbox
 '
 ```
 
-`claude` resolves to the host binary again on next shell. Docker itself is left installed; the user can `sudo apt remove docker-ce docker-ce-cli` if they want it gone.
+`claude` resolves to the host binary again on next shell, with the bootstrap's `--effort max` alias restored. Docker itself is left installed; the user can `sudo apt remove docker-ce docker-ce-cli` if they want it gone.
 
 ## Status
 

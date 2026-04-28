@@ -64,6 +64,19 @@ if ! grep -q "claude-vps-sandbox-PATH" "$BASHRC" 2>/dev/null; then
   } >> "$BASHRC"
 fi
 
+# 5. Strip the bootstrap's `alias claude='claude --effort max'` line. The
+#    sandbox wrapper already passes --effort max, so the alias would cause the
+#    flag to appear twice on every invocation — harmless but noisy. The alias
+#    only ever made sense for bare-VPS users; with the sandbox installed it's
+#    redundant. To revert, see /add-sandbox docs.
+if grep -qF "alias claude='claude --effort max'" "$BASHRC" 2>/dev/null; then
+  echo "==> Stripping redundant 'claude --effort max' alias (sandbox wrapper enforces it)..."
+  sed -i \
+    -e "/^# Default Claude Code to maximum reasoning effort on the VPS\.$/d" \
+    -e "/^alias claude='claude --effort max'$/d" \
+    "$BASHRC"
+fi
+
 echo ""
 echo "==> Done. In a new shell:"
 echo "      which claude         # should print $WRAPPER_DIR/claude"

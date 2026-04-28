@@ -28,6 +28,7 @@ The default pick is the cheapest non-deprecated `cx*` (Intel/AMD shared) instanc
 - **tmux**, **zsh**, **jq**, plus the helpers `vps-clone` and `vps-sync-repo`
 - **UFW firewall** (deny-all incoming except Tailscale; SSH is closed to the public internet)
 - A non-root user `agent` with passwordless `sudo`, an SSH keypair (so the VPS can rsync gitignored `.claude/` files back from your laptop), and a `claude --effort max` shell alias
+- `~agent/workspace/` as the default repo directory — `vps-clone` clones into it. Override with `VPS_REPOS_DIR` if you want repos somewhere else. Mirrors the laptop's `~/workspace/` (which `vps-sync-repo` searches for matching repos), so paths line up across the two machines.
 
 ## Prerequisites on your laptop
 

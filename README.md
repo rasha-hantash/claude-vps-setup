@@ -82,6 +82,7 @@ Follow-up commands:
 - `/add-paper` — bridge Paper Desktop's MCP server from your laptop to the VPS
 - `/add-chrome` — bridge `claude-in-chrome` (browser automation MCP) from your laptop to the VPS, so VPS Claude has the same browser tools you'd have locally
 - `/add-https` — add a Caddy + Let's Encrypt preview at `https://your.domain` for any dev server on the VPS
+- `/add-sandbox` — install Docker on the VPS and replace `claude` on PATH with a wrapper that runs Claude Code inside a container, so `--dangerously-skip-permissions` becomes safe to default on
 
 ## Running it without the agent
 
@@ -111,3 +112,4 @@ Known sharp edges:
 - **Build/cache directories are excluded from sync.** Worktrees under `.claude/worktrees/` are synced, but `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`, `.cache`, `.vercel`, `.svelte-kit`, `.nuxt`, `.parcel-cache`, `.vite`, `__pycache__`, `.venv`, `.pytest_cache`, `.mypy_cache`, `out`, and `coverage` are filtered out — these are gitignored on the laptop and would inflate the sync to multiple GB on a 40 GB cx23 disk. Source files, `settings.local.json`, and other small gitignored content all sync normally; rebuild on the VPS to regenerate the artifacts. To extend the exclude list, edit `EXCLUDE_DIRS_REGEX` in `scripts/vps-sync-repo.sh`. To prune merged worktrees from the laptop before syncing, do that manually for now (a `--prune-merged` flag is on the roadmap).
 - **`/add-paper`** has known unknowns documented in `docs/known-unknowns.md` — read it before running.
 - **`/add-https`** is wired but has not been run end-to-end against a real VPS. Expect to debug at least one thing on first run.
+- **`/add-sandbox`** is wired but has not been run end-to-end either. Most likely break-points: `docker` group membership timing on the freshly-added user, or a CWD-mount edge case in the wrapper.

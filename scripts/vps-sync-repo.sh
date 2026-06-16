@@ -18,7 +18,9 @@
 set -euo pipefail
 
 : "${LAPTOP_HOST:?LAPTOP_HOST is required. Add 'export LAPTOP_HOST=...' to your shell profile.}"
-LAPTOP_WORKSPACE="${LAPTOP_WORKSPACE:-\$HOME/workspace}"
+# LAPTOP_WORKSPACE may be unset here; the laptop side defaults it to
+# $HOME/workspace (expanded on the laptop, not on the VPS).
+LAPTOP_WORKSPACE="${LAPTOP_WORKSPACE:-}"
 
 if ! ORIGIN_URL=$(git config --get remote.origin.url 2>/dev/null); then
   echo "Error: not in a git repo (no remote.origin.url set)." >&2
@@ -31,15 +33,59 @@ if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$LAPTOP_HOST" true 2>/dev/null; t
   exit 1
 fi
 
+# Match by NORMALIZED remote URL, not raw string. gh-cloned VPS repos use the
+# HTTPS form (https://github.com/owner/repo.git) while laptop clones are often
+# SSH (git@github.com:owner/repo.git); a raw-string compare never matches those,
+# so the sync was silently skipped. normalize_remote_url() collapses scp/https/
+# ssh forms (and userinfo, port, trailing slash, .git, case) to a canonical
+# host/owner/repo. It also runs on the laptop (bash 3.2 on macOS) below, so keep
+# the two copies behaviorally identical and do NOT convert the scp-form colon
+# with a ${var/:/...} substitution — bash 3.2 inserts a literal backslash into
+# the replacement.
+normalize_remote_url() {
+  local u="$1" hostport host path
+  u="${u%/}"
+  u="${u%.git}"
+  if [[ "$u" == *://* ]]; then
+    u="${u#*://}"
+  else
+    u="${u%%:*}/${u#*:}"
+  fi
+  u="${u#*@}"
+  hostport="${u%%/*}"
+  host="${hostport%%:*}"
+  path="${u#*/}"
+  printf '%s' "${host}/${path}" | tr '[:upper:]' '[:lower:]'
+}
+
 echo "==> Searching for $ORIGIN_URL on laptop..."
-LAPTOP_REPO=$(ssh "$LAPTOP_HOST" bash -s <<EOF || true
+NORM_ORIGIN="$(normalize_remote_url "$ORIGIN_URL")"
+LAPTOP_REPO=$(ssh "$LAPTOP_HOST" bash -s "$NORM_ORIGIN" "$LAPTOP_WORKSPACE" <<'EOF' || true
 set -e
+NORM_ORIGIN="$1"
+WS="${2:-$HOME/workspace}"
+normalize_remote_url() {
+  local u="$1" hostport host path
+  u="${u%/}"
+  u="${u%.git}"
+  if [[ "$u" == *://* ]]; then
+    u="${u#*://}"
+  else
+    u="${u%%:*}/${u#*:}"
+  fi
+  u="${u#*@}"
+  hostport="${u%%/*}"
+  host="${hostport%%:*}"
+  path="${u#*/}"
+  printf '%s' "${host}/${path}" | tr '[:upper:]' '[:lower:]'
+}
 shopt -s nullglob 2>/dev/null || true
-for gitdir in \$(find $LAPTOP_WORKSPACE -maxdepth 5 -name .git -type d 2>/dev/null | grep -v '/.claude/worktrees/' || true); do
-  repo=\$(dirname "\$gitdir")
-  remote=\$(git -C "\$repo" config --get remote.origin.url 2>/dev/null || true)
-  if [ "\$remote" = "$ORIGIN_URL" ]; then
-    echo "\$repo"
+for gitdir in $(find "$WS" -maxdepth 5 -name .git -type d 2>/dev/null | grep -v '/.claude/worktrees/' || true); do
+  repo=$(dirname "$gitdir")
+  remote=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || true)
+  [ -z "$remote" ] && continue
+  if [ "$(normalize_remote_url "$remote")" = "$NORM_ORIGIN" ]; then
+    echo "$repo"
     exit 0
   fi
 done

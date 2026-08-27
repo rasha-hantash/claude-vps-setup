@@ -2,6 +2,9 @@
 # Each user generates their own; never commit.
 .setup-state.json
 
+# Claude Code worktrees
+.claude/worktrees/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
